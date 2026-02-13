@@ -1,16 +1,18 @@
 import { Header } from '@/components/layout/Header';
 import { Footer } from '@/components/layout/Footer';
-import { IdentificationForm } from '@/components/checkout/IdentificationForm';
+import { IdentificationForm, type IdentificationFormData } from '@/components/checkout/IdentificationForm';
 import { ShippingSection } from '@/components/checkout/ShippingSection';
 import { PaymentSection } from '@/components/checkout/PaymentSection';
 import { OrderBumps } from '@/components/checkout/OrderBumps';
 import { CartSummary } from '@/components/checkout/CartSummary';
+import { PixQRCodeModal } from '@/components/checkout/PixQRCodeModal';
 import { Button } from '@/components/ui/button';
 import { useCart } from '@/hooks/useCart';
 import { Separator } from '@/components/ui/separator';
 import { toast } from 'sonner';
-import { useState } from 'react'; // Import necessário para o toggle mobile
-import { ChevronDown, ChevronUp, ShoppingBag } from 'lucide-react'; // Ícones para UX
+import { useState, useRef } from 'react';
+import { ChevronDown, ChevronUp, ShoppingBag, Loader2 } from 'lucide-react';
+import { supabase } from '@/integrations/supabase/client';
 
 export default function Checkout() {
   const {
@@ -24,14 +26,58 @@ export default function Checkout() {
     itemCount,
   } = useCart();
 
-  // Estado para controlar se o resumo está aberto no mobile
   const [isMobileSummaryOpen, setIsMobileSummaryOpen] = useState(false);
+  const [isProcessing, setIsProcessing] = useState(false);
+  const [pixModal, setPixModal] = useState<{
+    open: boolean;
+    qrcode: string;
+    qrCodeImageUrl: string;
+    idTransaction: string;
+  }>({ open: false, qrcode: '', qrCodeImageUrl: '', idTransaction: '' });
 
-  const handleSubmit = (e: React.FormEvent) => {
+  const formDataRef = useRef<IdentificationFormData | null>(null);
+
+  const handleFormValidChange = (isValid: boolean, data: IdentificationFormData | null) => {
+    formDataRef.current = data;
+  };
+
+  const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
-    toast.success('Pedido realizado com sucesso!', {
-      description: 'Você será redirecionado para o pagamento PIX.',
-    });
+    const formData = formDataRef.current;
+
+    if (!formData || !formData.name || !formData.cpf || !formData.phone) {
+      toast.error('Preencha todos os campos obrigatórios');
+      return;
+    }
+
+    setIsProcessing(true);
+    try {
+      const { data, error } = await supabase.functions.invoke('create-pix-payment', {
+        body: {
+          amount: total,
+          debtor_name: formData.name,
+          email: formData.email || '',
+          debtor_document_number: formData.cpf,
+          phone: formData.phone,
+        },
+      });
+
+      if (error) throw error;
+      if (data?.error) throw new Error(data.error);
+
+      setPixModal({
+        open: true,
+        qrcode: data.qrcode,
+        qrCodeImageUrl: data.qr_code_image_url,
+        idTransaction: data.idTransaction,
+      });
+    } catch (err: any) {
+      toast.error('Erro ao gerar pagamento PIX', {
+        description: err.message || 'Tente novamente',
+      });
+    } finally {
+      setIsProcessing(false);
+    }
   };
 
   return (
@@ -79,7 +125,7 @@ export default function Checkout() {
             <div className="space-y-6">
               {/* Identification */}
               <div className="bg-card rounded-lg p-6 border shadow-sm">
-                <IdentificationForm />
+                <IdentificationForm onValidChange={handleFormValidChange} />
               </div>
 
               {/* Shipping */}
@@ -119,9 +165,10 @@ export default function Checkout() {
                 
                 <Button
                   type="submit"
+                  disabled={isProcessing}
                   className="w-full h-14 text-lg font-bold mt-4 bg-[#fe2c55] hover:bg-[#fe2c55]/90 text-white shadow-lg"
                 >
-                  FINALIZAR COMPRA
+                  {isProcessing ? <><Loader2 className="w-5 h-5 animate-spin mr-2" /> PROCESSANDO...</> : 'FINALIZAR COMPRA'}
                 </Button>
                 
                 <div className="text-center mt-4 text-xs text-muted-foreground flex items-center justify-center gap-2">
@@ -137,11 +184,21 @@ export default function Checkout() {
           <div className="fixed bottom-0 left-0 right-0 p-4 bg-background border-t lg:hidden z-50">
             <Button
               type="submit"
+              disabled={isProcessing}
               className="w-full h-14 text-lg font-bold bg-[#fe2c55] hover:bg-[#fe2c55]/90 text-white shadow-lg"
             >
-              FINALIZAR COMPRA - R$ {total.toFixed(2)}
+              {isProcessing ? <><Loader2 className="w-5 h-5 animate-spin mr-2" /> PROCESSANDO...</> : `FINALIZAR COMPRA - R$ ${total.toFixed(2)}`}
             </Button>
           </div>
+
+          <PixQRCodeModal
+            open={pixModal.open}
+            onOpenChange={(open) => setPixModal((prev) => ({ ...prev, open }))}
+            qrcode={pixModal.qrcode}
+            qrCodeImageUrl={pixModal.qrCodeImageUrl}
+            idTransaction={pixModal.idTransaction}
+            total={total}
+          />
         </form>
       </main>
 

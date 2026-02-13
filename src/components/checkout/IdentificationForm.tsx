@@ -4,7 +4,7 @@ import { z } from 'zod';
 import { Input } from '@/components/ui/input';
 import { Checkbox } from '@/components/ui/checkbox';
 import { Label } from '@/components/ui/label';
-import { useState } from 'react';
+import React, { useState } from 'react';
 
 // CPF validation
 function isValidCPF(cpf: string): boolean {
@@ -92,6 +92,17 @@ export function IdentificationForm({ onValidChange }: IdentificationFormProps) {
   });
 
   const watchedValues = watch();
+
+  // Notify parent of form data changes
+  const allValues = watch();
+  const isFormValid = !errors.name && !errors.cpf && !errors.phone && allValues.name && allValues.cpf && allValues.phone;
+  
+  // Use effect-like pattern via watch callback
+  React.useEffect(() => {
+    if (onValidChange) {
+      onValidChange(!!isFormValid, isFormValid ? allValues : null);
+    }
+  }, [allValues.name, allValues.cpf, allValues.phone, allValues.email, isFormValid]);
 
   const handlePhoneChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     const masked = maskPhone(e.target.value);

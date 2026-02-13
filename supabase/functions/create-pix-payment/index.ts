@@ -35,7 +35,7 @@ serve(async (req) => {
     const cleanDoc = debtor_document_number.replace(/\D/g, '');
     const cleanPhone = phone.replace(/\D/g, '');
 
-    const gatewayResponse = await fetch('https://painel.xbankaccess.com', {
+    const gatewayResponse = await fetch('https://painel.xbankaccess.com/api/wallet/deposit/payment', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({
@@ -47,7 +47,7 @@ serve(async (req) => {
         debtor_document_number: cleanDoc,
         phone: cleanPhone,
         method_pay: 'pix',
-        postback: '',
+        postback: `${Deno.env.get('SUPABASE_URL')}/functions/v1/pix-webhook`,
       }),
     });
 

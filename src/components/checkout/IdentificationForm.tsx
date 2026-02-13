@@ -2,9 +2,8 @@ import { useForm } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
 import { z } from 'zod';
 import { Input } from '@/components/ui/input';
-import { Checkbox } from '@/components/ui/checkbox';
 import { Label } from '@/components/ui/label';
-import React, { useState } from 'react';
+import React from 'react';
 
 // CPF validation
 function isValidCPF(cpf: string): boolean {
@@ -30,11 +29,10 @@ function isValidCPF(cpf: string): boolean {
 }
 
 const formSchema = z.object({
-  email: z.string().email('E-mail inválido').or(z.literal('')),
+  email: z.string().email('E-mail inválido'),
   phone: z.string().min(14, 'Telefone inválido'),
   name: z.string().min(3, 'Nome deve ter pelo menos 3 caracteres'),
   cpf: z.string().refine((val) => isValidCPF(val), 'CPF inválido'),
-  noEmail: z.boolean().optional(),
 });
 
 export type IdentificationFormData = z.infer<typeof formSchema>;
@@ -71,8 +69,6 @@ function maskCPF(value: string): string {
 }
 
 export function IdentificationForm({ onValidChange }: IdentificationFormProps) {
-  const [noEmail, setNoEmail] = useState(false);
-  
   const {
     register,
     formState: { errors },
@@ -87,7 +83,6 @@ export function IdentificationForm({ onValidChange }: IdentificationFormProps) {
       phone: '',
       name: '',
       cpf: '',
-      noEmail: false,
     },
   });
 
@@ -95,7 +90,10 @@ export function IdentificationForm({ onValidChange }: IdentificationFormProps) {
 
   // Notify parent of form data changes
   const allValues = watch();
-  const isFormValid = !errors.name && !errors.cpf && !errors.phone && allValues.name && allValues.cpf && allValues.phone;
+  
+  // Agora o formulário só é válido se o e-mail também estiver correto e preenchido
+  const isFormValid = !errors.name && !errors.cpf && !errors.phone && !errors.email && 
+                      allValues.name && allValues.cpf && allValues.phone && allValues.email;
   
   // Use effect-like pattern via watch callback
   React.useEffect(() => {
@@ -129,28 +127,12 @@ export function IdentificationForm({ onValidChange }: IdentificationFormProps) {
               id="email"
               type="email"
               placeholder="seu@email.com"
-              disabled={noEmail}
               className={errors.email ? 'border-destructive' : ''}
               {...register('email')}
             />
             {errors.email && (
               <p className="text-xs text-destructive">{errors.email.message}</p>
             )}
-            <div className="flex items-center gap-2">
-              <Checkbox
-                id="noEmail"
-                checked={noEmail}
-                onCheckedChange={(checked) => {
-                  setNoEmail(!!checked);
-                  if (checked) {
-                    setValue('email', '');
-                  }
-                }}
-              />
-              <Label htmlFor="noEmail" className="text-xs text-muted-foreground cursor-pointer">
-                Não tenho e-mail
-              </Label>
-            </div>
           </div>
 
           <div className="space-y-2">
